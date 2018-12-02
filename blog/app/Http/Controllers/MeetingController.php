@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Meeting;
+use App\User;
 use Illuminate\Http\Request;
 
 class MeetingController extends Controller
@@ -13,7 +15,19 @@ class MeetingController extends Controller
      */
     public function index()
     {
-        return "it is work!";
+        $meetings = Meeting::all();
+
+        foreach ($meetings as $meeting){
+            $meeting->view_meeting = [
+                'href' => 'api/v1/meeting/' . $meeting->id,
+                'method' => 'GET'
+            ];
+        }
+
+        $resposne = [
+            'msg' => 'List of all meetings',
+            'meetings' => $meetings
+        ];
     }
 
     
@@ -26,20 +40,32 @@ class MeetingController extends Controller
      */
     public function store(Request $request)
     {
+        $request->validate([
+            'title' => 'required',
+            'description' => 'required',
+            'time' => 'required|date_format:Y-m-d',
+            'user_id'=> 'required'
+
+        ]);
+
         $title = $request->input('title');
         $description = $request->input('description');
         $time = $request->input('time');
         $user_id = $request->input('user_id');
-        $meeting = [
-            'title' => $title,
-            'description' => $description,
-            'time' => $time,
-            'user_id' => $user_id,
-            'view_meeting' => [
-                'href'=> 'api/v1/meeting/1',
-                'method' => 'GET'
-            ]
-        ];
+
+        $meeting = new Meeting([
+            'title'=> $title,
+            'description'=> $description,
+            'time'=> $time                                          //Carbon::createFormFormat('YmdHie',$time),
+        ]);
+
+        if($meeting->save()){
+            $meeting->users()->attach($user_id);
+            $meeting->view_meeting = [
+                'href'=>'api/v1/meeting/' . $meeting->id,
+                'method'=>'GET'
+            ];
+        }
 
         $response = [
             'msg' => 'Meeting created',
@@ -57,7 +83,20 @@ class MeetingController extends Controller
      */
     public function show($id)
     {
-        return "it is work!";
+        $meeting = Meeting::with('users')->where('id',$id)->firstOrFail();
+
+        $meeting->view_meeting = [
+            'href'=>'api/v1/meeting/' . $meeting->id,
+            'method'=>'GET'
+        ];
+
+        $response = [
+            'msg'=>'Meeting Information',
+            'meeting'=>$meeting
+        ];
+
+        return response()->json($response,201);
+
     }
 
     

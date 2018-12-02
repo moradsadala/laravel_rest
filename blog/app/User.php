@@ -29,6 +29,6 @@ class User extends Authenticatable
     ];
 
     public function meetings(){
-        $this->belongsToMany('App/Meeting');
+        return $this->belongsToMany('App\Meeting');
     }
 }
