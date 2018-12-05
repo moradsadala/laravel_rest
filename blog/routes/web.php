@@ -15,7 +15,7 @@ Route::group(['prefix'=>'api/v1'],function(){
         'except'=>['edit','create']
     ]);
     
-    Route::resource('meeting/registration','RegetrationController',[
+    Route::resource('meeting/registration','RegisterationController',[
         'only'=>['store','destroy']
     ]);
     

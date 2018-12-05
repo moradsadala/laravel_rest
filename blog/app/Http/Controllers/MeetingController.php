@@ -4,10 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Meeting;
 use App\User;
+
 use Illuminate\Http\Request;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class MeetingController extends Controller
 {
+
+    public function __construct()
+    {
+        $this->middleware('jwt.auth',['only'=>[
+            'update','store','destroy']
+        ]);
+    }
     /**
      * Display a listing of the resource.
      *
@@ -44,14 +53,18 @@ class MeetingController extends Controller
             'title' => 'required',
             'description' => 'required',
             'time' => 'required|date_format:Y-m-d',
-            'user_id'=> 'required'
-
         ]);
+
+        if(! $user = JWTAuth::parseToken()->authentication()){
+            return response()->json([
+                'msg'=>'User not found'
+            ],404);
+        }
 
         $title = $request->input('title');
         $description = $request->input('description');
         $time = $request->input('time');
-        $user_id = $request->input('user_id');
+        $user_id =$user->id;
 
         $meeting = new Meeting([
             'title'=> $title,
@@ -109,12 +122,52 @@ class MeetingController extends Controller
      */
     public function update(Request $request, $id)
     {
+        $request->validate([
+            'title' => 'required',
+            'description' => 'required',
+            'time' => 'required|date_format:Y-m-d',
+        ]);
+
+        if(! $user = JWTAuth::parseToken()->authenticate()){
+            return response()->json([
+                'msg'=>'User not found'
+            ],404);
+        }
+
+
         $title = $request->input('title');
         $description = $request->input('description');
         $time = $request->input('time');
-        $user_id = $request->input('user_id');
+        $user_id = $user->id;
 
-        
+        $meeting = Meeting::with('users')->findOrFail($id);
+        if(!$meeting->users()->where('user_id',$user_id)->first()){
+            return response()->json([
+                'msg'=>'User not registed for this meeting'
+            ],401);
+        }
+        $meeting->title = $title;
+        $meeting->description = $description;
+        $meeting->time = $time;
+        $meeting->users()->user_id = $user_id;
+
+        if(!$meeting->update()){
+            return response()->json([
+                'msg'=>'Error during updating'
+            ],404);
+        }
+
+        $meeting->view_meeting = [
+            'href'=>'api/v1/meeting/' . $id,
+            'method'=>'GET'
+        ];
+
+        $response = [
+            'msg'=>'The meeting is successfully updated',
+            'meeting'=>$meeting
+        ];
+
+        return response()->json($response,200);
     }
 
     /**
@@ -125,6 +178,41 @@ class MeetingController extends Controller
      */
     public function destroy($id)
     {
-        return "it is work!";
+        $meeting = Meeting::findOrFail($id);
+        
+
+        if(! $user = JWTAuth::parseToken()->authentication()){
+            return response()->json([
+                'msg'=>'User not found'
+            ],404);
+        }
+
+        if(!$meeting->users()->where('user_id',$user->id)->first()){
+            return response()->json([
+                'msg'=>'User not registed for this meeting'
+            ],401);
+        }
+
+        $users = $meeting->users;
+        $meeting->delete();
+        $meeting->users()->detach();
+        if(!$meeting->delete()){
+            foreach($users as $user){
+                $meeting->users()->attach($user);
+            }
+            return response()->json([
+                'msg'=>'Deletion Failed',
+
+            ],404);
+        }
+        $response = [
+            'msg'=>'Meeting deleted',
+            'create'=> [
+                'href'=>'api/v1/meeting',
+                'method'=>'POST',
+                'params'=>'title,description,time'
+            ]
+            ];
+
     }
 }
